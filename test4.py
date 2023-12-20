@@ -46,7 +46,7 @@ print(len(corners))
 result_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)  # Convert to color image
 for corner in corners:
     x, y = corner.ravel()
-    cv2.circle(result_image, (x, y), 1, (0, 0, 255), -1)  # (0, 0, 255) corresponds to red
+    cv2.circle(result_image, (x, y), 2, (0, 0, 255), -1)  # (0, 0, 255) corresponds to red
 
 # Display the result
 cv2.imshow('Corners', result_image)

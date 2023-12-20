@@ -4,7 +4,7 @@ import networkx as nx
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
-from scipy.spatial import cKDTree
+from scipy.spatial import Delaunay, cKDTree
 
 
 class GraphBuilder:
@@ -24,46 +24,110 @@ class GraphBuilder:
         self.end_node = None
         self.shortest_path = None
 
-        self.display_image()
+        # Display the original image with nodes
+        self.display_image(self.original_image, draw_nodes=True)
+
+        # # Display the original image
+        # self.display_image()
 
     def build_graph(self):
+        # Convert the image to grayscale
+        gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+
         # Apply Canny edge detection
-        edges = cv2.Canny(self.original_image, 50, 150)
+        edges = cv2.Canny(gray_image, 50, 150)
 
-        # Find coordinates of edge pixels
-        edge_coordinates = np.argwhere(edges > 0)
+        # Apply a threshold to segment the darkest regions
+        _, binary_image = cv2.threshold(gray_image, 50, 255, cv2.THRESH_BINARY)
 
-        # Create a KD-tree for efficient neighbor search
-        tree = cKDTree(edge_coordinates)
+        # Combine edges from the darkest regions
+        edges = cv2.bitwise_and(edges, binary_image)
+
+        # Find contours in the binary image
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Create a graph
         G = nx.Graph()
 
-        # Connect nearby edge pixels to form edges in the graph
-        for i in range(len(edge_coordinates)):
-            node1 = tuple(edge_coordinates[i])
+        # Extract nodes from the contours
+        for contour in contours:
+            for point in contour:
+                node = tuple(point[0])
+                G.add_node(node)
 
-            # Find nearby nodes within a distance threshold
-            nearby_nodes = tree.query_ball_point(
-                node1, r=10
-            )  # Adjust the radius as needed
+        # Build KD-tree for efficient neighbor search
+        tree = cKDTree(np.array(list(G.nodes())))
 
-            for j in nearby_nodes:
-                if i < j:  # Ensure not to add duplicate edges
-                    node2 = tuple(edge_coordinates[j])
-                    distance = np.linalg.norm(np.array(node1) - np.array(node2))
+        # Connect each node to its two nearest neighbors
+        for i, node in enumerate(G.nodes()):
+            node1 = tuple(node)
 
-                    # You can adjust the threshold for connecting nodes based on distance
-                    if distance < 5:  # You may need to experiment with this threshold
-                        G.add_edge(node1, node2)
+            # Find the two nearest neighbors within a distance threshold
+            _, indices = tree.query(node, k=min(3, len(G.nodes())), distance_upper_bound=20)
+
+            # Remove the current node from the neighbors and ensure valid indices
+            valid_indices = [idx for idx in indices if idx != i and idx < len(G.nodes())]
+            neighbors = [tuple(list(G.nodes())[idx]) for idx in valid_indices][:2]
+
+            # Add edges to the two nearest neighbors
+            for neighbor in neighbors:
+                G.add_edge(node1, neighbor)
+
 
         return G
 
-    def display_image(self, image=None):
+    # def visualize_graph_on_image(self, image, graph):
+    #     image_copy = image.copy()
+
+    #     for edge in graph.edges():
+    #         node1 = tuple(map(int, edge[0]))
+    #         node2 = tuple(map(int, edge[1]))
+    #         cv2.line(image_copy, node1, node2, (0, 255, 0), 2)
+
+    #     return image_copy
+
+    # def build_graph(self):
+    #     # Apply Canny edge detection
+    #     edges = cv2.Canny(self.original_image, 50, 150)
+
+    #     # Find coordinates of edge pixels
+    #     edge_coordinates = np.argwhere(edges > 0)
+
+    #     # Create a KD-tree for efficient neighbor search
+    #     tree = cKDTree(edge_coordinates)
+
+    #     # Create a graph
+    #     G = nx.Graph()
+
+    #     # Connect nearby edge pixels to form edges in the graph
+    #     for i in range(len(edge_coordinates)):
+    #         node1 = tuple(edge_coordinates[i])
+
+    #         # Find nearby nodes within a distance threshold
+    #         nearby_nodes = tree.query_ball_point(
+    #             node1, r=10
+    #         )  # Adjust the radius as needed
+
+    #         for j in nearby_nodes:
+    #             if i < j:  # Ensure not to add duplicate edges
+    #                 node2 = tuple(edge_coordinates[j])
+    #                 distance = np.linalg.norm(np.array(node1) - np.array(node2))
+
+    #                 # You can adjust the threshold for connecting nodes based on distance
+    #                 if distance < 5:  # You may need to experiment with this threshold
+    #                     G.add_edge(node1, node2)
+
+    #     return G
+
+    def display_image(self, image=None, draw_nodes=False):
         if image is None:
             image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         else:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        if draw_nodes:
+            for node in self.G.nodes():
+                cv2.circle(image, tuple(map(int, node)), 3, (255, 0, 0), -1)
 
         image = Image.fromarray(image)
         photo = ImageTk.PhotoImage(image)
