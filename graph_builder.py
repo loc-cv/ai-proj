@@ -33,28 +33,34 @@ class GraphBuilder:
         self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
         self.canvas.image = photo
 
+    def find_nearest_node(self, target_node):
+        _, nearest_node = min(
+            (np.linalg.norm(np.array(target_node) - np.array(graph_node)), graph_node)
+            for graph_node in self.G.nodes()
+            if target_node != graph_node
+        )
+        return nearest_node
+
     def on_canvas_click(self, event):
         clicked_node = (int(event.x), int(event.y))
 
         if len(self.G.nodes()) > 0:
             nearest_node = self.find_nearest_node(clicked_node)
-            self.G.add_node(clicked_node)
-
             if nearest_node is not None:
-                self.G.add_edge(clicked_node, nearest_node)
+                if np.linalg.norm(np.array(clicked_node) - np.array(nearest_node)) < 10:
+                    self.G.add_edge(nearest_node, self.find_nearest_node(nearest_node))
+                    print("Find near node!", nearest_node)
+                    print(
+                        "And its nearest node is:", self.find_nearest_node(nearest_node)
+                    )
+                else:
+                    self.G.add_edge(clicked_node, nearest_node)
+                    self.G.add_node(clicked_node)
         else:
-            # For the first click, just add the node without attempting to find its nearest node
             self.G.add_node(clicked_node)
 
         self.visualize_graph_on_image()
         self.save_graph_to_file()
-
-    def find_nearest_node(self, target_node):
-        _, nearest_node = min(
-            (np.linalg.norm(np.array(target_node) - np.array(graph_node)), graph_node)
-            for graph_node in self.G.nodes()
-        )
-        return nearest_node
 
     def visualize_graph_on_image(self):
         image_copy = self.original_image.copy()
@@ -68,10 +74,9 @@ class GraphBuilder:
 
     def save_graph_to_file(self, filename="graph_data.json"):
         graph_data = {
-            "nodes": list(self.G.nodes()),
-            "edges": list(self.G.edges())
+            "nodes": list(map(tuple, self.G.nodes())),
+            "edges": list(map(lambda x: (tuple(x[0]), tuple(x[1])), self.G.edges())),
         }
-
         with open(filename, "w") as file:
             json.dump(graph_data, file)
 
@@ -80,8 +85,12 @@ class GraphBuilder:
             with open(filename, "r") as file:
                 graph_data = json.load(file)
 
-            self.G.add_nodes_from(graph_data["nodes"])
-            self.G.add_edges_from(graph_data["edges"])
+            nodes = [tuple(node) for node in graph_data["nodes"]]
+            edges = [tuple((tuple(edge[0]), tuple(edge[1]))) for edge in graph_data["edges"]]
+
+            self.G.add_nodes_from(nodes)
+            self.G.add_edges_from(edges)
+
             self.visualize_graph_on_image()
 
         except (FileNotFoundError, json.JSONDecodeError):
