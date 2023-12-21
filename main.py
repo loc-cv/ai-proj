@@ -5,6 +5,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 import json
 from scipy.spatial import cKDTree
+import heapq
 
 
 class GraphBuilder:
@@ -80,16 +81,64 @@ class GraphBuilder:
 
     def calculate_and_display_shortest_path(self, start_node, end_node):
         try:
-            self.shortest_path = nx.astar_path(
-                self.G,
-                start_node,
-                end_node,
-                heuristic=lambda n, _: np.linalg.norm(np.array(n) - np.array(end_node)),
-                weight="weight",
-            )
+            shortest_path = self.a_star_search(start_node, end_node)
+            self.shortest_path = shortest_path
             self.display_shortest_path()
-        except nx.NetworkXNoPath:
+        except ValueError:
             print("No path found between the selected nodes.")
+
+    def a_star_search(self, start, end):
+        open_set = []
+        closed_set = set()
+
+        # Each element in the open_set is a tuple (f_cost, node)
+        heapq.heappush(open_set, (0, start))
+
+        # Keep track of the cost from start to each node
+        g_costs = {node: float("inf") for node in self.G.nodes()}
+        g_costs[start] = 0
+
+        # Keep track of the estimated total cost from start to end through each node
+        f_costs = {node: float("inf") for node in self.G.nodes()}
+        f_costs[start] = self.heuristic(start, end)
+
+        # Keep track of the parent node for each node
+        parents = {node: None for node in self.G.nodes()}
+
+        while open_set:
+            current_cost, current_node = heapq.heappop(open_set)
+
+            if current_node == end:
+                # Reconstruct the path
+                path = [end]
+                while parents[end] is not None:
+                    path.append(parents[end])
+                    end = parents[end]
+                return path[::-1]
+
+            closed_set.add(current_node)
+
+            for neighbor in self.G.neighbors(current_node):
+                if neighbor in closed_set:
+                    continue
+
+                tentative_g_cost = g_costs[current_node] + self.distance(current_node, neighbor)
+                if tentative_g_cost < g_costs[neighbor]:
+                    parents[neighbor] = current_node
+                    g_costs[neighbor] = tentative_g_cost
+                    f_costs[neighbor] = g_costs[neighbor] + self.heuristic(neighbor, end)
+                    heapq.heappush(open_set, (f_costs[neighbor], neighbor))
+
+        raise ValueError("No path found")
+
+    def heuristic(self, node, goal):
+        # Euclidean distance heuristic
+        return np.linalg.norm(np.array(node) - np.array(goal))
+
+    def distance(self, node1, node2):
+        # Weighted distance between nodes
+        return np.linalg.norm(np.array(node1) - np.array(node2))
+
 
     def visualize_graph_on_image(self):
         image_copy = self.original_image.copy()
