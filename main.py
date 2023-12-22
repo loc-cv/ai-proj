@@ -44,7 +44,7 @@ class GraphBuilder:
             self.G.add_nodes_from(nodes)
             self.G.add_edges_from(edges)
 
-            self.visualize_graph_on_image()
+            # self.visualize_graph_on_image()
 
         except (FileNotFoundError, json.JSONDecodeError):
             print("Error loading graph data from file.")
@@ -70,6 +70,10 @@ class GraphBuilder:
             self.start_node = clicked_node
         elif self.end_node is None:
             self.end_node = clicked_node
+
+        # Display the location symbol immediately after the click
+        self.render_location_symbol(clicked_node, color=(0, 255, 0))
+        self.display_image()
 
         if self.start_node is not None and self.end_node is not None:
             self.calculate_and_display_shortest_path(
@@ -156,20 +160,41 @@ class GraphBuilder:
         self.display_image(image_copy)
 
     def display_shortest_path(self):
-        # Highlight the shortest path on the image
+        # Highlight the shortest path on the image with animation
         image_copy = self.original_image.copy()
-        for i in range(len(self.shortest_path) - 1):
-            node1 = tuple(map(int, self.shortest_path[i]))
-            node2 = tuple(map(int, self.shortest_path[i + 1]))
-            cv2.line(image_copy, node1, node2, (0, 0, 255), 2)
 
-        # Update the displayed image with the highlighted path
-        self.display_image(image_copy)
+        def draw_path_segment(segment):
+            if len(segment) < 2:
+                return
+
+            node1 = tuple(map(int, segment[0]))
+            node2 = tuple(map(int, segment[1]))
+
+            # Draw the path segment with a thicker and blue line
+            cv2.line(image_copy, node1, node2, (100, 149, 237), 4)
+            self.display_image(image_copy)
+            self.master.update()  # Update the window
+
+            # Schedule the next segment to be drawn after a shorter delay
+            self.master.after(10, draw_path_segment, segment[1:])
+
+        # Start drawing the path segments
+        draw_path_segment(self.shortest_path)
+
+    def render_location_symbol(self, position, color=(210, 31, 60), radius=10, thickness=2):
+        # Render a nicer location symbol on the image at the specified position
+        cv2.circle(self.original_image, position, radius, color, thickness)
+
+    def clear_location_symbols(self):
+        # Clear the location symbols on the image
+        self.original_image = cv2.imread(self.image_path)
+        # self.visualize_graph_on_image()
 
     def reset_program(self):
         self.start_node = None
         self.end_node = None
         self.shortest_path = None
+        self.clear_location_symbols()
         self.G = nx.Graph()
         self.graph_data_path = "./graph_data.json"  # Reset the graph data path
         self.canvas.delete("all")  # Clear the canvas
