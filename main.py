@@ -24,6 +24,11 @@ class GraphBuilder:
         self.start_node = None
         self.end_node = None
         self.shortest_path = None
+
+        # Add a Reset button
+        reset_button = tk.Button(self.master, text="Reset", command=self.reset_program)
+        reset_button.pack()
+
         self.display_image()
 
     def load_graph_from_file(self, filename="graph_data.json"):
@@ -161,6 +166,17 @@ class GraphBuilder:
         # Update the displayed image with the highlighted path
         self.display_image(image_copy)
 
+    def reset_program(self):
+        self.start_node = None
+        self.end_node = None
+        self.shortest_path = None
+        self.G = nx.Graph()
+        self.graph_data_path = "./graph_data.json"  # Reset the graph data path
+        self.canvas.delete("all")  # Clear the canvas
+        self.display_image()
+
+        # Load the graph from the file after resetting
+        self.load_graph_from_file(self.graph_data_path)
 
 def main():
     root = tk.Tk()
